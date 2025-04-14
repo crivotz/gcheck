@@ -85,6 +85,7 @@ if [ ! -f "$EXCLUDE_FILE" ]; then
   echo ".tmux" >> "$EXCLUDE_FILE"
   echo ".cargo" >> "$EXCLUDE_FILE"
   echo ".zinit" >> "$EXCLUDE_FILE"
+  echo ".asdf" >> "$EXCLUDE_FILE"
   echo -e "${GREEN}Exclude file created with default entries.${NC}"
 fi
 
