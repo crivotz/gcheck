@@ -46,29 +46,29 @@ function print_help() {
 while [[ "$1" != "" ]]; do
   case $1 in
     --target ) shift
-               TARGET_DIR="$1"
-               ;;
+      TARGET_DIR="$1"
+      ;;
     --depth )  shift
-               SCAN_DEPTH="$1"
-               ;;
+      SCAN_DEPTH="$1"
+      ;;
     --verbose ) VERBOSE=1
-               ;;
+      ;;
     --fzf )    USE_FZF=1
-               ;;
+      ;;
     --all )    SHOW_ALL=1
-               ;;
+      ;;
     --bookmark ) shift
-                 BOOKMARK_NAME="$1"
-                 ;;
+      BOOKMARK_NAME="$1"
+      ;;
     --use-bookmark ) shift
-                     USE_BOOKMARK="$1"
-                     ;;
+      USE_BOOKMARK="$1"
+      ;;
     --help )   print_help
-               exit 0
-               ;;
+      exit 0
+      ;;
     * )        echo -e "${RED}Error: Invalid argument $1${NC}"
-               print_help
-               exit 1
+      print_help
+      exit 1
   esac
   shift
 done
@@ -149,8 +149,9 @@ for repo in $repos; do
 
   # Check for updates to push or pull
   if git rev-parse --is-inside-work-tree &>/dev/null; then
-    ahead=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
-    behind=$(git rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
+    git fetch &>/dev/null
+    ahead=$(git rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
+    behind=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
   else
     echo -e "${YELLOW}Warning: Unable to check remote status for $repo. Ensure SSH keys are loaded.${NC}"
     ahead=0
@@ -176,7 +177,7 @@ for repo in $repos; do
   # Output results in table format
   printf "| %-30s | %-20s | ${status_color}Modified: %2d  Untracked: %2d  Push: %2d  Pull: %2d${NC} |\n" \
     "$repo_name" "$branch_name" "$modified_files" "$untracked_files" "$ahead" "$behind"
-done
+  done
 
 # If FZF is enabled, pass only repositories with changes to FZF
 if [[ "$USE_FZF" -eq 1 ]]; then
