@@ -148,8 +148,14 @@ for repo in $repos; do
   untracked_files=$(echo "$git_status" | grep -E "^\?\?" | wc -l)
 
   # Check for updates to push or pull
-  ahead=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
-  behind=$(git rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
+  if git rev-parse --is-inside-work-tree &>/dev/null; then
+    ahead=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+    behind=$(git rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
+  else
+    echo -e "${YELLOW}Warning: Unable to check remote status for $repo. Ensure SSH keys are loaded.${NC}"
+    ahead=0
+    behind=0
+  fi
 
   # Determine the color based on the status
   if [[ "$modified_files" -gt 0 || "$untracked_files" -gt 0 ]]; then
