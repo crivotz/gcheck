@@ -175,7 +175,7 @@ for repo in $repos; do
   fi
 
   # Output results in table format
-  printf "| %-30s | %-20s | ${status_color}Modified: %2d  Untracked: %2d  Push: %2d  Pull: %2d${NC} |\n" \
+  printf "| %-30s | %-20s | ${status_color}Modified: %2d  Untracked: %2d  Pull: %2d  Push: %2d${NC} |\n" \
     "$repo_name" "$branch_name" "$modified_files" "$untracked_files" "$ahead" "$behind"
   done
 
