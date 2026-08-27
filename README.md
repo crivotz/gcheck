@@ -1,5 +1,7 @@
 # gcheck
 
+![gcheck logo](logo.png)
+
 **gcheck** is a Bash script that scans directories for Git repositories, checks their status, and provides a visual summary using colors to indicate the status of each repository. The script also offers advanced features like saving scans as bookmarks, using `fzf` to select repositories, and customizing the scan depth.
 
 ---
