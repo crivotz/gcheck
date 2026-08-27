@@ -211,6 +211,15 @@ Configuration files are located in the `~/.config/gcheck` directory:
 
 ---
 
+## TODO
+
+- [ ] Fix the automatic `cd` from `fzf` (wrapper function in `~/.bashrc`/`~/.zshrc`).
+- [ ] Add an option to `pull` directly from the selected repository.
+- [ ] Add an option to `push` directly from the selected repository.
+- [ ] Check the `ahead` count, it doesn't seem to be working correctly.
+
+---
+
 ## Credits
 
 The box-window layout, ahead/behind columns, and selectable color themes were
