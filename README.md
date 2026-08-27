@@ -6,16 +6,18 @@
 
 ## Features
 
-- **Scan Git Directories**: Scans directories to find Git repositories up to a configurable depth.
-- **Visual Summary**:
-  - **Green**: Repositories with no issues (OK).
-  - **Red**: Modified, untracked, or uncommitted files.
-  - **Yellow**: Repositories requiring a push or pull.
+- **Scan Git Directories**: Scans directories to find Git repositories up to a configurable depth (spaces in paths are handled correctly).
+- **Parallel Scanning**: Repositories are checked concurrently (`--parallel`, default 8) with a spinner while scanning.
+- **TUI Table**: Box-drawing table with dynamically sized columns, status icons (✔ OK, ✖ changes, ⇅ sync needed) and a legend. Colors and icons are automatically disabled when output isn't a terminal or `NO_COLOR` is set.
+- **Sorted Output**: Repositories with uncommitted changes are shown first, then those needing sync, then (with `--all`) clean ones — alphabetically within each group.
+- **Summary Line**: Total repositories scanned, counts per status, and elapsed time.
 - **Bookmarks**:
   - Save the list of scanned repositories as a bookmark.
   - Use bookmarks to limit scans to specific repositories.
+  - A bookmark named `default` is used automatically when neither `--target` nor `--use-bookmark` is given; if it doesn't exist, the current directory is scanned as usual.
 - **Exclude Directories**: Exclude specific directories from scans using a configuration file.
-- **`fzf` Support**: Filter repositories with changes and select one to open in the shell.
+- **`--no-fetch`**: Skip `git fetch` for a faster, offline-friendly scan.
+- **`fzf` Support**: Filter repositories with changes and select one (see [Opening the selected repository](#opening-the-selected-repository) to actually `cd` into it).
 - **Verbose Mode**: Adds detailed logs during script execution.
 
 ---
@@ -103,17 +105,58 @@ Edit the file `~/.config/gcheck/exclude_list` to add directories to exclude (one
   ./gcheck.sh --fzf
   ```
 
+- **Skip network calls (no `git fetch`)**:
+  ```bash
+  ./gcheck.sh --no-fetch
+  ```
+
+- **Control scan concurrency**:
+  ```bash
+  ./gcheck.sh --parallel 16
+  ```
+
+### Opening the selected repository
+
+A script running as a subprocess can't change the directory of the shell that
+launched it, so `--fzf` writes the chosen repository path to
+`~/.config/gcheck/.last_dir` instead of `cd`-ing directly. Add this function
+to your `~/.bashrc` / `~/.zshrc` to get automatic `cd` behavior:
+
+```bash
+gcheck() {
+  local last="$HOME/.config/gcheck/.last_dir"
+  command gcheck.sh "$@"
+  if [[ -f "$last" ]]; then
+    cd "$(cat "$last")" || return
+    rm -f "$last"
+  fi
+}
+```
+
+Then use `gcheck --fzf` instead of calling the script directly.
+
 ---
 
 ## Output
 
-The script generates a tabular summary with the following details:
+The script prints a box-drawing table with a legend, one row per repository,
+and a summary line:
 
-| Repository                  | Branch              | Status                                         |
-|-----------------------------|---------------------|-----------------------------------------------|
-| `my-repo`                   | `main`             | **Green**: OK                                 |
-| `another-repo`              | `develop`          | **Red**: Modified: 2, Untracked: 1           |
-| `yet-another-repo`          | `feature-x`        | **Yellow**: Push: 1, Pull: 2                  |
+```
+Legend: ✔ OK   ⇅ sync needed   ✖ uncommitted changes
+╭───────────────┬───────────┬─────────────────────────────╮
+│ Repository    │ Branch    │ Status                      │
+├───────────────┼───────────┼─────────────────────────────┤
+│ another-repo  │ develop   │ ✖ Modified: 2  Untracked: 1 │
+│ yet-another   │ feature-x │ ⇅ Pull: 2  Push: 1          │
+│ my-repo       │ main      │ ✔ OK                        │
+╰───────────────┴───────────┴─────────────────────────────╯
+Scan complete: 3 repositories — 1 OK, 1 with changes, 1 need sync  (1s)
+```
+
+Repositories with changes are listed first, then those needing a sync, then
+(with `--all`) clean ones. Colors and icons are skipped automatically when
+output isn't a terminal (e.g. piped to a file) or when `NO_COLOR` is set.
 
 ---
 
@@ -121,7 +164,8 @@ The script generates a tabular summary with the following details:
 
 Configuration files are located in the `~/.config/gcheck` directory:
 - **Exclude List**: `exclude_list` — contains directories to exclude from scans.
-- **Bookmark Directory**: `bookmarks/` — contains saved bookmark files.
+- **Bookmark Directory**: `bookmarks/` — contains saved bookmark files. A bookmark named `default` is loaded automatically when the script is run without `--target` or `--use-bookmark`.
+- **`.last_dir`**: written by `--fzf` with the selected repository path (see [Opening the selected repository](#opening-the-selected-repository)).
 
 ---
 
