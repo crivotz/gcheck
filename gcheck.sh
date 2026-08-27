@@ -1,25 +1,94 @@
 #!/bin/bash
 set -uo pipefail
+shopt -s extglob
 
 # ---------------------------------------------------------------------------
-# Colors / icons (disabled automatically when not a TTY or when NO_COLOR is set)
+# Colors / icons / themes (disabled automatically when not a TTY or when
+# NO_COLOR is set). Only the status colors change between themes — the box
+# border always stays a neutral gray, so switching themes never gets loud.
 # ---------------------------------------------------------------------------
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  RED=$'\033[0;31m'
-  YELLOW=$'\033[0;33m'
-  GREEN=$'\033[0;32m'
-  BLUE=$'\033[0;34m'
-  BOLD=$'\033[1m'
-  DIM=$'\033[2m'
-  NC=$'\033[0m'
-else
-  RED="" YELLOW="" GREEN="" BLUE="" BOLD="" DIM="" NC=""
-fi
+COLOR_ENABLED=0
+[[ -t 1 && -z "${NO_COLOR:-}" ]] && COLOR_ENABLED=1
+
+THEMES="default monokai catppuccin tokyonight gruvbox dracula nord"
+THEME_NAME="default"
+
+apply_theme() {
+  local theme="$1"
+  if [[ "$COLOR_ENABLED" -eq 0 ]]; then
+    RED="" YELLOW="" GREEN="" BLUE="" CYAN="" BORDER="" BOLD="" DIM="" NC=""
+    return
+  fi
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
+  BORDER=$'\033[38;2;73;73;73m'
+  case "$theme" in
+    monokai)
+      RED=$'\033[38;2;249;38;114m'; GREEN=$'\033[38;2;166;226;46m'
+      YELLOW=$'\033[38;2;230;219;116m'; BLUE=$'\033[38;2;174;129;255m'
+      CYAN=$'\033[38;2;102;217;239m' ;;
+    catppuccin)
+      RED=$'\033[38;2;243;139;168m'; GREEN=$'\033[38;2;166;227;161m'
+      YELLOW=$'\033[38;2;249;226;175m'; BLUE=$'\033[38;2;137;180;250m'
+      CYAN=$'\033[38;2;137;220;235m' ;;
+    tokyonight)
+      RED=$'\033[38;2;247;118;142m'; GREEN=$'\033[38;2;158;206;106m'
+      YELLOW=$'\033[38;2;224;175;104m'; BLUE=$'\033[38;2;122;162;247m'
+      CYAN=$'\033[38;2;125;207;255m' ;;
+    gruvbox)
+      RED=$'\033[38;2;251;73;52m'; GREEN=$'\033[38;2;184;187;38m'
+      YELLOW=$'\033[38;2;250;189;47m'; BLUE=$'\033[38;2;131;165;152m'
+      CYAN=$'\033[38;2;142;192;124m' ;;
+    dracula)
+      RED=$'\033[38;2;255;85;85m'; GREEN=$'\033[38;2;80;250;123m'
+      YELLOW=$'\033[38;2;241;250;140m'; BLUE=$'\033[38;2;189;147;249m'
+      CYAN=$'\033[38;2;139;233;253m' ;;
+    nord)
+      RED=$'\033[38;2;191;97;106m'; GREEN=$'\033[38;2;163;190;140m'
+      YELLOW=$'\033[38;2;235;203;139m'; BLUE=$'\033[38;2;129;161;193m'
+      CYAN=$'\033[38;2;136;192;208m' ;;
+    default|*)
+      RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[0;33m'
+      BLUE=$'\033[0;34m'; CYAN=$'\033[0;36m' ;;
+  esac
+}
+apply_theme "$THEME_NAME"
 
 ICON_OK="✔"
 ICON_CHANGES="✖"
-ICON_SYNC="⇅"
 FS=$'\x1f' # field separator used to pass results back from parallel workers
+
+# Strip ANSI color escapes before measuring/padding so colored cell text
+# (branch names, ahead/behind counts, status) still lines up in the table.
+# ✔/✖ render as ordinary single-width glyphs in every terminal we've tested
+# against, so plain codepoint count (no wide-character compensation) is the
+# correct width here.
+strip_ansi() {
+  local s="$1"
+  s="${s//$'\x1b'\[+([0-9;])m/}"
+  printf '%s' "$s"
+}
+
+display_width() {
+  local str
+  str=$(strip_ansi "$1")
+  printf '%d' "${#str}"
+}
+
+pad_field() {
+  local str="$1" target="$2" w pad
+  w=$(display_width "$str")
+  pad=$((target - w))
+  (( pad < 0 )) && pad=0
+  printf '%s%*s' "$str" "$pad" ""
+}
+
+pad_field_right() {
+  local str="$1" target="$2" w pad
+  w=$(display_width "$str")
+  pad=$((target - w))
+  (( pad < 0 )) && pad=0
+  printf '%*s%s' "$pad" "" "$str"
+}
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -39,6 +108,8 @@ NO_FETCH=0
 MAX_PARALLEL=8
 BOOKMARK_NAME=""
 USE_BOOKMARK=""
+THEME_ARG=""
+LIST_THEMES=0
 
 log_debug() { [[ "$VERBOSE" -eq 1 ]] && echo -e "${BLUE}[DEBUG]${NC} $1" >&2; return 0; }
 log_info()  { echo -e "${BLUE}$1${NC}"; }
@@ -58,6 +129,9 @@ Usage: $0 [--target <directory>] [--depth <level>] [options]
   --verbose               Show detailed debug output
   --fzf                   Filter repositories with changes using fzf and select one
   --all                   Show all repositories, including those with no issues
+  --theme <name>          Set and persist the color theme (default, monokai, catppuccin,
+                          tokyonight, gruvbox, dracula, nord)
+  --list-themes           List available color themes and exit
   --help                  Show this help message
 
 If neither --target nor --use-bookmark is given and a bookmark named
@@ -89,6 +163,10 @@ while [[ $# -gt 0 ]]; do
     --use-bookmark )
       shift; [[ $# -eq 0 ]] && { log_err "Error: --use-bookmark requires a value"; exit 1; }
       USE_BOOKMARK="$1" ;;
+    --theme )
+      shift; [[ $# -eq 0 ]] && { log_err "Error: --theme requires a value"; exit 1; }
+      THEME_ARG="$1" ;;
+    --list-themes ) LIST_THEMES=1 ;;
     --help )
       print_help; exit 0 ;;
     * )
@@ -123,6 +201,34 @@ fi
 [[ -d "$BOOKMARK_DIR" ]] || mkdir -p "$BOOKMARK_DIR"
 
 mapfile -t excluded_dirs < <(grep -vE '^\s*(#|$)' "$EXCLUDE_FILE" 2>/dev/null || true)
+
+# ---------------------------------------------------------------------------
+# Resolve and apply the color theme: --theme overrides and persists it,
+# otherwise fall back to the last saved theme, otherwise "default".
+# ---------------------------------------------------------------------------
+THEME_FILE="$CONFIG_DIR/theme"
+if [[ -n "$THEME_ARG" ]]; then
+  THEME_NAME="$THEME_ARG"
+  if [[ " $THEMES " != *" $THEME_NAME "* ]]; then
+    log_err "Error: unknown theme '$THEME_NAME'. Available: $THEMES"
+    exit 1
+  fi
+  printf '%s\n' "$THEME_NAME" > "$THEME_FILE"
+elif [[ -f "$THEME_FILE" ]]; then
+  THEME_NAME=$(<"$THEME_FILE")
+fi
+
+if [[ "$LIST_THEMES" -eq 1 ]]; then
+  echo "Available themes (current marked with *):"
+  for t in $THEMES; do
+    apply_theme "$t"
+    marker=" "; [[ "$t" == "$THEME_NAME" ]] && marker="*"
+    printf ' %s %s%-11s%s %s%s%s %s%s%s\n' "$marker" "$BOLD" "$t" "$NC" "$GREEN" "$ICON_OK" "$NC" "$RED" "$ICON_CHANGES" "$NC"
+  done
+  exit 0
+fi
+
+apply_theme "$THEME_NAME"
 
 # ---------------------------------------------------------------------------
 # Resolve default bookmark: if the user didn't ask for a specific target or
@@ -246,7 +352,7 @@ wait "$scan_pid" 2>/dev/null || true
 # ---------------------------------------------------------------------------
 # Parse results
 # ---------------------------------------------------------------------------
-d_name=() d_branch=() d_status=() d_color=() d_sev=()
+d_name=() d_branch=() d_status=() d_status_color=() d_ahead=() d_behind=() d_sev=()
 repos_with_changes=()
 ok_count=0
 changes_count=0
@@ -263,34 +369,64 @@ for ((idx = 1; idx <= total; idx++)); do
   fi
 
   if [[ "$r_mod" -gt 0 || "$r_untr" -gt 0 ]]; then
-    color="$RED"; icon="$ICON_CHANGES"; sev=2
+    sev=2; status_color="$RED"
+    status_text="${ICON_CHANGES} Modified: $r_mod  Untracked: $r_untr"
     repos_with_changes+=("$r_path")
     changes_count=$((changes_count + 1))
-    status_text="Modified: $r_mod  Untracked: $r_untr"
   elif [[ "$r_pull" -gt 0 || "$r_push" -gt 0 ]]; then
-    color="$YELLOW"; icon="$ICON_SYNC"; sev=1
+    sev=1; status_color="$GREEN"; status_text="${ICON_OK} clean"
     repos_with_changes+=("$r_path")
     sync_count=$((sync_count + 1))
-    status_text="Pull: $r_pull  Push: $r_push"
   else
-    color="$GREEN"; icon="$ICON_OK"; sev=0
+    sev=0; status_color="$GREEN"; status_text="${ICON_OK} OK"
+    [[ "$r_upstream" -eq 0 ]] && status_text="${ICON_OK} OK (no upstream)"
     ok_count=$((ok_count + 1))
-    status_text="OK"
-    [[ "$r_upstream" -eq 0 ]] && status_text="OK  (no upstream)"
   fi
 
   [[ "$SHOW_ALL" -eq 0 && "$sev" -eq 0 ]] && continue
 
+  if [[ "$r_upstream" -eq 1 ]]; then
+    ahead_val="$r_push"; behind_val="$r_pull"
+  else
+    ahead_val="-"; behind_val="-"
+  fi
+
   d_name+=("$r_name")
   d_branch+=("$r_branch")
-  d_status+=("$icon $status_text")
-  d_color+=("$color")
+  d_status+=("$status_text")
+  d_status_color+=("$status_color")
+  d_ahead+=("$ahead_val")
+  d_behind+=("$behind_val")
   d_sev+=("$sev")
 done
 
 # ---------------------------------------------------------------------------
-# Render the TUI table
+# Render: a single bordered window, ahead/behind as their own colored
+# columns, and a category breakdown inside the box instead of one line after it.
 # ---------------------------------------------------------------------------
+hrule() {
+  local n=$1 out=""
+  for ((k = 0; k < n; k++)); do out+="─"; done
+  printf '%s' "$out"
+}
+
+draw_top_title() {
+  local width="$1" text="$2" dw left right
+  dw=$(display_width "$text")
+  left=$(( (width - dw) / 2 ))
+  right=$(( width - dw - left ))
+  printf '%s╭%s%s%s%s╮%s\n' "$BORDER" "$(hrule "$left")" "$text" "$BORDER" "$(hrule "$right")" "$NC"
+}
+
+draw_sep() { printf '%s├%s┤%s\n' "$BORDER" "$(hrule "$1")" "$NC"; }
+draw_bottom() { printf '%s╰%s╯%s\n' "$BORDER" "$(hrule "$1")" "$NC"; }
+
+draw_row() {
+  local text="$1" width="$2" padded
+  padded=$(pad_field "$text" $((width - 2)))
+  printf '%s│%s %s %s│%s\n' "$BORDER" "$NC" "$padded" "$BORDER" "$NC"
+}
+
 if [[ ${#d_name[@]} -eq 0 ]]; then
   log_info "All repositories are clean. ${ICON_OK}"
 else
@@ -301,37 +437,64 @@ else
     done | sort -k1,1n -k2,2 | cut -f3
   )
 
-  header_repo="Repository"; header_branch="Branch"; header_status="Status"
-  repo_w=${#header_repo}; branch_w=${#header_branch}; status_w=${#header_status}
+  header_repo="Repository"; header_branch="Branch"; header_ahead="Ahead"; header_behind="Behind"; header_status="Status"
+  repo_w=$(display_width "$header_repo"); branch_w=$(display_width "$header_branch")
+  ahead_w=$(display_width "$header_ahead"); behind_w=$(display_width "$header_behind")
+  status_w=$(display_width "$header_status")
   for i in "${order[@]}"; do
-    (( ${#d_name[i]} > repo_w )) && repo_w=${#d_name[i]}
-    (( ${#d_branch[i]} > branch_w )) && branch_w=${#d_branch[i]}
-    (( ${#d_status[i]} > status_w )) && status_w=${#d_status[i]}
+    w=$(display_width "${d_name[i]}"); (( w > repo_w )) && repo_w=$w
+    w=$(display_width "${d_branch[i]}"); (( w > branch_w )) && branch_w=$w
+    w=$(display_width "${d_ahead[i]}"); (( w > ahead_w )) && ahead_w=$w
+    w=$(display_width "${d_behind[i]}"); (( w > behind_w )) && behind_w=$w
+    w=$(display_width "${d_status[i]}"); (( w > status_w )) && status_w=$w
   done
 
-  hrule() {
-    local n=$1 out=""
-    for ((k = 0; k < n; k++)); do out+="─"; done
-    printf '%s' "$out"
-  }
+  header_row="$(pad_field "$header_repo" "$repo_w")  $(pad_field "$header_branch" "$branch_w")  $(pad_field_right "$header_ahead" "$ahead_w")  $(pad_field_right "$header_behind" "$behind_w")  $(pad_field "$header_status" "$status_w")"
 
-  print_border() {
-    local left="$1" mid="$2" right="$3"
-    echo "${left}$(hrule $((repo_w + 2)))${mid}$(hrule $((branch_w + 2)))${mid}$(hrule $((status_w + 2)))${right}"
-  }
-
-  echo -e "${DIM}Legend: ${GREEN}${ICON_OK} OK${NC}${DIM}   ${YELLOW}${ICON_SYNC} sync needed${NC}${DIM}   ${RED}${ICON_CHANGES} uncommitted changes${NC}"
-  print_border '╭' '┬' '╮'
-  printf '│ %-*s │ %-*s │ %-*s │\n' "$repo_w" "$header_repo" "$branch_w" "$header_branch" "$status_w" "$header_status"
-  print_border '├' '┼' '┤'
+  data_rows=()
   for i in "${order[@]}"; do
-    padded_status=$(printf '%-*s' "$status_w" "${d_status[i]}")
-    printf '│ %-*s │ %-*s │ %s%s%s │\n' "$repo_w" "${d_name[i]}" "$branch_w" "${d_branch[i]}" "${d_color[i]}" "$padded_status" "$NC"
+    name_f=$(pad_field "${d_name[i]}" "$repo_w")
+    branch_f=$(pad_field "${CYAN}${d_branch[i]}${NC}" "$branch_w")
+    ahead_color="$DIM"; [[ "${d_ahead[i]}" != "-" && "${d_ahead[i]}" -gt 0 ]] && ahead_color="$GREEN"
+    behind_color="$DIM"; [[ "${d_behind[i]}" != "-" && "${d_behind[i]}" -gt 0 ]] && behind_color="$RED"
+    ahead_f=$(pad_field_right "${ahead_color}${d_ahead[i]}${NC}" "$ahead_w")
+    behind_f=$(pad_field_right "${behind_color}${d_behind[i]}${NC}" "$behind_w")
+    status_f=$(pad_field "${d_status_color[i]}${d_status[i]}${NC}" "$status_w")
+    data_rows+=("${name_f}  ${branch_f}  ${ahead_f}  ${behind_f}  ${status_f}")
   done
-  print_border '╰' '┴' '╯'
+
+  summary_label_w=0
+  for lbl in "Healthy" "Attention" "Sync needed"; do
+    w=$(display_width "$lbl"); (( w > summary_label_w )) && summary_label_w=$w
+  done
+  summary_rows=(
+    "$(pad_field "${GREEN}Healthy${NC}" "$summary_label_w")   ${ok_count}"
+    "$(pad_field "${RED}Attention${NC}" "$summary_label_w")   ${changes_count}  (uncommitted changes)"
+    "$(pad_field "${YELLOW}Sync needed${NC}" "$summary_label_w")   ${sync_count}  (ahead/behind remote)"
+  )
+
+  box_w=0
+  for r in "$header_row" "${data_rows[@]}" "${summary_rows[@]}"; do
+    w=$(display_width "$r"); (( w + 2 > box_w )) && box_w=$((w + 2))
+  done
+  title=" ${BOLD}gcheck${NC} "
+  title_w=$(display_width "$title"); (( title_w + 2 > box_w )) && box_w=$((title_w + 2))
+
+  echo -e "${DIM}Legend: ${GREEN}${ICON_OK} OK${NC}${DIM}   ${RED}${ICON_CHANGES} uncommitted changes${NC}${DIM}   ${GREEN}ahead${NC}${DIM}/${RED}behind${NC}${DIM} = commits to push/pull${NC}"
+  draw_top_title "$box_w" "$title"
+  draw_row "$header_row" "$box_w"
+  draw_sep "$box_w"
+  for row in "${data_rows[@]}"; do
+    draw_row "$row" "$box_w"
+  done
+  draw_sep "$box_w"
+  for row in "${summary_rows[@]}"; do
+    draw_row "$row" "$box_w"
+  done
+  draw_bottom "$box_w"
 fi
 
-echo -e "${BOLD}Scan complete:${NC} ${total} repositories — ${GREEN}${ok_count} OK${NC}, ${RED}${changes_count} with changes${NC}, ${YELLOW}${sync_count} need sync${NC}  ${DIM}(${SECONDS}s)${NC}"
+echo -e "${DIM}Scanned ${total} repositories in ${SECONDS}s (theme: ${THEME_NAME})${NC}"
 
 # ---------------------------------------------------------------------------
 # fzf selection: write the choice to a state file (a plain `cd` here would

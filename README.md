@@ -8,9 +8,11 @@
 
 - **Scan Git Directories**: Scans directories to find Git repositories up to a configurable depth (spaces in paths are handled correctly).
 - **Parallel Scanning**: Repositories are checked concurrently (`--parallel`, default 8) with a spinner while scanning.
-- **TUI Table**: Box-drawing table with dynamically sized columns, status icons (✔ OK, ✖ changes, ⇅ sync needed) and a legend. Colors and icons are automatically disabled when output isn't a terminal or `NO_COLOR` is set.
+- **Windowed Box Layout**: Single bordered box with dynamically sized columns (Repository, Branch, Ahead, Behind, Status), status icons (✔ OK, ✖ changes) and a legend. Colors and icons are automatically disabled when output isn't a terminal or `NO_COLOR` is set.
+- **Ahead/Behind Columns**: Commits to push/pull are shown as their own colored columns, independent of whether the repo also has uncommitted changes.
 - **Sorted Output**: Repositories with uncommitted changes are shown first, then those needing sync, then (with `--all`) clean ones — alphabetically within each group.
-- **Summary Line**: Total repositories scanned, counts per status, and elapsed time.
+- **In-box Summary**: A Healthy / Attention / Sync needed breakdown inside the same box, plus a final line with total repositories scanned and elapsed time.
+- **Color Themes**: Choose between `default`, `monokai`, `catppuccin`, `tokyonight`, `gruvbox`, `dracula`, and `nord` with `--theme`; the choice is persisted across runs. Use `--list-themes` to preview them.
 - **Bookmarks**:
   - Save the list of scanned repositories as a bookmark.
   - Use bookmarks to limit scans to specific repositories.
@@ -115,6 +117,16 @@ Edit the file `~/.config/gcheck/exclude_list` to add directories to exclude (one
   ./gcheck.sh --parallel 16
   ```
 
+- **Switch color theme (persisted across runs)**:
+  ```bash
+  ./gcheck.sh --theme dracula
+  ```
+
+- **List available themes**:
+  ```bash
+  ./gcheck.sh --list-themes
+  ```
+
 ### Opening the selected repository
 
 A script running as a subprocess can't change the directory of the shell that
@@ -139,24 +151,30 @@ Then use `gcheck --fzf` instead of calling the script directly.
 
 ## Output
 
-The script prints a box-drawing table with a legend, one row per repository,
-and a summary line:
+The script prints a single bordered box with a legend, one row per
+repository, and a Healthy / Attention / Sync needed breakdown at the bottom:
 
 ```
-Legend: ✔ OK   ⇅ sync needed   ✖ uncommitted changes
-╭───────────────┬───────────┬─────────────────────────────╮
-│ Repository    │ Branch    │ Status                      │
-├───────────────┼───────────┼─────────────────────────────┤
-│ another-repo  │ develop   │ ✖ Modified: 2  Untracked: 1 │
-│ yet-another   │ feature-x │ ⇅ Pull: 2  Push: 1          │
-│ my-repo       │ main      │ ✔ OK                        │
-╰───────────────┴───────────┴─────────────────────────────╯
-Scan complete: 3 repositories — 1 OK, 1 with changes, 1 need sync  (1s)
+Legend: ✔ OK   ✖ uncommitted changes   ahead/behind = commits to push/pull
+╭────────────────────────────── gcheck ───────────────────────────────╮
+│ Repository    Branch     Ahead  Behind  Status                      │
+├─────────────────────────────────────────────────────────────────────┤
+│ another-repo  develop        -       -  ✖ Modified: 1  Untracked: 1 │
+│ yet-another   feature-x      1       0  ✔ clean                     │
+│ my-repo       main           -       -  ✔ OK (no upstream)          │
+├─────────────────────────────────────────────────────────────────────┤
+│ Healthy       1                                                     │
+│ Attention     1  (uncommitted changes)                              │
+│ Sync needed   1  (ahead/behind remote)                              │
+╰─────────────────────────────────────────────────────────────────────╯
+Scanned 3 repositories in 0s (theme: default)
 ```
 
-Repositories with changes are listed first, then those needing a sync, then
-(with `--all`) clean ones. Colors and icons are skipped automatically when
-output isn't a terminal (e.g. piped to a file) or when `NO_COLOR` is set.
+Ahead/Behind show `-` for repositories with no upstream branch configured.
+Repositories with uncommitted changes are listed first, then those needing a
+sync, then (with `--all`) clean ones. Colors and icons are skipped
+automatically when output isn't a terminal (e.g. piped to a file) or when
+`NO_COLOR` is set.
 
 ---
 
@@ -185,6 +203,14 @@ Configuration files are located in the `~/.config/gcheck` directory:
    git push origin feature/new-feature
    ```
 5. Open a pull request on GitHub.
+
+---
+
+## Credits
+
+The box-window layout, ahead/behind columns, and selectable color themes were
+inspired by [check-repo](https://github.com/Cartoone9/check-repo), a similar
+tool for monitoring multiple Git repositories.
 
 ---
 
