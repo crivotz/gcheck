@@ -110,6 +110,7 @@ BOOKMARK_NAME=""
 USE_BOOKMARK=""
 THEME_ARG=""
 LIST_THEMES=0
+FULL_PATH=0
 
 log_debug() { [[ "$VERBOSE" -eq 1 ]] && echo -e "${BLUE}[DEBUG]${NC} $1" >&2; return 0; }
 log_info()  { echo -e "${BLUE}$1${NC}"; }
@@ -132,6 +133,7 @@ Usage: $0 [--target <directory>] [--depth <level>] [options]
   --theme <name>          Set and persist the color theme (default, monokai, catppuccin,
                           tokyonight, gruvbox, dracula, nord)
   --list-themes           List available color themes and exit
+  --full-path             Show the full path instead of just the repository name
   --help                  Show this help message
 
 If neither --target nor --use-bookmark is given and a bookmark named
@@ -167,6 +169,7 @@ while [[ $# -gt 0 ]]; do
       shift; [[ $# -eq 0 ]] && { log_err "Error: --theme requires a value"; exit 1; }
       THEME_ARG="$1" ;;
     --list-themes ) LIST_THEMES=1 ;;
+    --full-path )   FULL_PATH=1 ;;
     --help )
       print_help; exit 0 ;;
     * )
@@ -391,7 +394,11 @@ for ((idx = 1; idx <= total; idx++)); do
     ahead_val="-"; behind_val="-"
   fi
 
-  d_name+=("$r_name")
+  if [[ "$FULL_PATH" -eq 1 ]]; then
+    d_name+=("$r_path")
+  else
+    d_name+=("$r_name")
+  fi
   d_branch+=("$r_branch")
   d_status+=("$status_text")
   d_status_color+=("$status_color")

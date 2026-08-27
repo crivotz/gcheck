@@ -127,6 +127,11 @@ Edit the file `~/.config/gcheck/exclude_list` to add directories to exclude (one
   ./gcheck.sh --list-themes
   ```
 
+- **Show the full path instead of the repository name**:
+  ```bash
+  ./gcheck.sh --full-path
+  ```
+
 ### Opening the selected repository
 
 A script running as a subprocess can't change the directory of the shell that
