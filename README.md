@@ -1,6 +1,6 @@
 # gcheck
 
-![gcheck logo](logo.png)
+<img src="logo.png" alt="gcheck logo" width="300">
 
 **gcheck** is a Bash script that scans directories for Git repositories, checks their status, and provides a visual summary using colors to indicate the status of each repository. The script also offers advanced features like saving scans as bookmarks, using `fzf` to select repositories, and customizing the scan depth.
 
@@ -219,6 +219,8 @@ Configuration files are located in the `~/.config/gcheck` directory:
 - [ ] Add an option to `pull` directly from the selected repository.
 - [ ] Add an option to `push` directly from the selected repository.
 - [ ] Check the `ahead` count, it doesn't seem to be working correctly.
+- [ ] Evaluate: extend `fzf` with `--preview` (git status/log) and key bindings for pull/push on the selected repo.
+- [ ] Evaluate: rewrite as a full TUI dashboard (e.g. Go + bubbletea/tview, or Python + textual) for a persistent, navigable view.
 
 ---
 
