@@ -21,7 +21,8 @@
   - A bookmark named `default` is used automatically when neither `--target` nor `--use-bookmark` is given; if it doesn't exist, the current directory is scanned as usual.
 - **Exclude Directories**: Exclude specific directories from scans using a configuration file.
 - **`--no-fetch`**: Skip `git fetch` for a faster, offline-friendly scan.
-- **`fzf` Support**: Filter repositories with changes and select one (see [Opening the selected repository](#opening-the-selected-repository) to actually `cd` into it).
+- **`fzf` Support**: Filter repositories with changes and select one or more (Tab to multi-select) — see [Opening the selected repository](#opening-the-selected-repository) to actually `cd` into it (only supported for a single selection). Add `--pull` to run `git pull` on every selected repository right away; with `--pull`, the `fzf` list only shows repositories that are behind their upstream.
+- **`--pull-all`**: Run `git pull` on every repository behind its upstream, without going through `fzf` at all.
 - **Verbose Mode**: Adds detailed logs during script execution.
 
 ---
@@ -107,6 +108,16 @@ Edit the file `~/.config/gcheck/exclude_list` to add directories to exclude (one
 - **Use `fzf` to select repositories with changes**:
   ```bash
   ./gcheck.sh --fzf
+  ```
+
+- **Select one or more repositories with `fzf` (Tab to multi-select) and pull them immediately**:
+  ```bash
+  ./gcheck.sh --fzf --pull
+  ```
+
+- **Pull every repository behind its upstream, without `fzf`**:
+  ```bash
+  ./gcheck.sh --pull-all
   ```
 
 - **Skip network calls (no `git fetch`)**:
@@ -215,10 +226,10 @@ Configuration files are located in the `~/.config/gcheck` directory:
 
 ## TODO
 
-- [ ] Fix the automatic `cd` from `fzf` (wrapper function in `~/.bashrc`/`~/.zshrc`).
-- [ ] Add an option to `pull` directly from the selected repository.
+- [x] Fix the automatic `cd` from `fzf` (wrapper function in `~/.bashrc`/`~/.zshrc`).
+- [x] Add an option to `pull` directly from the selected repository.
 - [ ] Add an option to `push` directly from the selected repository.
-- [ ] Check the `ahead` count, it doesn't seem to be working correctly.
+- [x] Check the `ahead` count, it doesn't seem to be working correctly.
 
 ---
 
