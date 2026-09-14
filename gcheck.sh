@@ -111,6 +111,8 @@ USE_BOOKMARK=""
 THEME_ARG=""
 LIST_THEMES=0
 FULL_PATH=0
+DO_PULL=0
+DO_PULL_ALL=0
 
 log_debug() { [[ "$VERBOSE" -eq 1 ]] && echo -e "${BLUE}[DEBUG]${NC} $1" >&2; return 0; }
 log_info()  { echo -e "${BLUE}$1${NC}"; }
@@ -129,6 +131,8 @@ Usage: $0 [--target <directory>] [--depth <level>] [options]
   --use-bookmark <name>   Use a saved bookmark to limit the scan to specific repositories
   --verbose               Show detailed debug output
   --fzf                   Filter repositories with changes using fzf and select one
+  --pull                  With --fzf, run 'git pull' on the selected repository
+  --pull-all              Run 'git pull' on every repository behind its upstream (no fzf)
   --all                   Show all repositories, including those with no issues
   --theme <name>          Set and persist the color theme (default, monokai, catppuccin,
                           tokyonight, gruvbox, dracula, nord)
@@ -157,6 +161,8 @@ while [[ $# -gt 0 ]]; do
       MAX_PARALLEL="$1" ;;
     --verbose ) VERBOSE=1 ;;
     --fzf )     USE_FZF=1 ;;
+    --pull )    DO_PULL=1 ;;
+    --pull-all ) DO_PULL_ALL=1 ;;
     --all )     SHOW_ALL=1 ;;
     --no-fetch ) NO_FETCH=1 ;;
     --bookmark )
@@ -180,6 +186,8 @@ done
 
 [[ "$SCAN_DEPTH" =~ ^[0-9]+$ ]] || { log_err "Error: --depth must be a positive integer"; exit 1; }
 [[ "$MAX_PARALLEL" =~ ^[0-9]+$ && "$MAX_PARALLEL" -ge 1 ]] || { log_err "Error: --parallel must be a positive integer"; exit 1; }
+[[ "$DO_PULL" -eq 1 && "$USE_FZF" -eq 0 ]] && { log_err "Error: --pull requires --fzf"; exit 1; }
+[[ "$DO_PULL_ALL" -eq 1 && "$USE_FZF" -eq 1 ]] && { log_err "Error: --pull-all cannot be combined with --fzf"; exit 1; }
 
 # ---------------------------------------------------------------------------
 # Setup configuration directory and files
@@ -357,6 +365,7 @@ wait "$scan_pid" 2>/dev/null || true
 # ---------------------------------------------------------------------------
 d_name=() d_branch=() d_status=() d_status_color=() d_ahead=() d_behind=() d_sev=()
 repos_with_changes=()
+repos_behind=()
 ok_count=0
 changes_count=0
 sync_count=0
@@ -385,6 +394,8 @@ for ((idx = 1; idx <= total; idx++)); do
     [[ "$r_upstream" -eq 0 ]] && status_text="${ICON_OK} OK (no upstream)"
     ok_count=$((ok_count + 1))
   fi
+
+  [[ "$r_upstream" -eq 1 && "$r_pull" -gt 0 ]] && repos_behind+=("$r_path")
 
   [[ "$SHOW_ALL" -eq 0 && "$sev" -eq 0 ]] && continue
 
@@ -504,19 +515,50 @@ fi
 echo -e "${DIM}Scanned ${total} repositories in ${SECONDS}s (theme: ${THEME_NAME})${NC}"
 
 # ---------------------------------------------------------------------------
+# --pull-all: pull every repository behind its upstream, no fzf involved.
+# ---------------------------------------------------------------------------
+if [[ "$DO_PULL_ALL" -eq 1 ]]; then
+  if [[ ${#repos_behind[@]} -eq 0 ]]; then
+    log_info "No repositories behind their upstream to pull."
+  else
+    for repo in "${repos_behind[@]}"; do
+      log_info "Pulling in $repo..."
+      ( cd "$repo" && git pull ) || log_err "Error: 'git pull' failed in $repo"
+    done
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # fzf selection: write the choice to a state file (a plain `cd` here would
 # only affect this subprocess, not your shell — see README for a wrapper
 # function that reads this file and `cd`s for you).
 # ---------------------------------------------------------------------------
 if [[ "$USE_FZF" -eq 1 ]]; then
-  if [[ ${#repos_with_changes[@]} -eq 0 ]]; then
-    log_warn "No repositories with changes to display in fzf."
+  if [[ "$DO_PULL" -eq 1 ]]; then
+    fzf_repos=("${repos_behind[@]}")
+    fzf_empty_msg="No repositories behind their upstream to display in fzf."
   else
-    selected_repo=$(printf '%s\n' "${repos_with_changes[@]}" | fzf --prompt "Select a repository: ")
-    if [[ -n "$selected_repo" ]]; then
-      log_info "Selected: $selected_repo"
-      printf '%s' "$selected_repo" > "$LAST_DIR_FILE"
-      echo -e "${DIM}Tip: use the gcheck() shell wrapper from the README to cd automatically.${NC}"
+    fzf_repos=("${repos_with_changes[@]}")
+    fzf_empty_msg="No repositories with changes to display in fzf."
+  fi
+  if [[ ${#fzf_repos[@]} -eq 0 ]]; then
+    log_warn "$fzf_empty_msg"
+  else
+    mapfile -t selected_repos < <(printf '%s\n' "${fzf_repos[@]}" | fzf --multi --prompt "Select repositories (Tab to multi-select): ")
+    if [[ ${#selected_repos[@]} -gt 0 ]]; then
+      log_info "Selected: ${selected_repos[*]}"
+      if [[ "$DO_PULL" -eq 1 ]]; then
+        for repo in "${selected_repos[@]}"; do
+          log_info "Pulling in $repo..."
+          ( cd "$repo" && git pull ) || log_err "Error: 'git pull' failed in $repo"
+        done
+      fi
+      if [[ ${#selected_repos[@]} -eq 1 ]]; then
+        printf '%s' "${selected_repos[0]}" > "$LAST_DIR_FILE"
+        echo -e "${DIM}Tip: use the gcheck() shell wrapper from the README to cd automatically.${NC}"
+      else
+        log_debug "Multiple repositories selected; skipping auto-cd (only supported for a single selection)."
+      fi
     fi
   fi
 fi
